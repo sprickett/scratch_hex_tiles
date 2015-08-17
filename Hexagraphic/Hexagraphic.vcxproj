@@ -162,6 +162,7 @@
     <None Include="opencv.props" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Geometry60.h" />
     <ClInclude Include="Polygon.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

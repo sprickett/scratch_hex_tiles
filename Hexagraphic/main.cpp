@@ -6,20 +6,21 @@
 using namespace std;
 
 #include "Polygon.h"
+#include "Geometry60.h"
 
 
-struct VTri :public Point
-{
-	VTri(const Point& p = Point())
-	:Point(p){};
-};
 struct HTri :public Point
 {
 	HTri(const Point& p = Point())
 	:Point(p){};
 };
-struct VHex :public Point{};
-struct HHex :public Point{};
+struct VTri :public Point
+{
+	VTri(const Point& p = Point())
+	:Point(p){};
+};
+//struct VHex :public Point{};
+//struct HHex :public Point{};
 
 
 class Mapping
@@ -29,13 +30,13 @@ public:
 		:size_(size)
 	{}
 
-	HTri to_h_triangle(const Point& screen) const
-	{
-		return to_h_triangle(screen, size_);
-	}
 	VTri to_v_triangle(const Point& screen) const
 	{
 		return to_v_triangle(screen, size_);
+	}
+	HTri to_h_triangle(const Point& screen) const
+	{
+		return to_h_triangle(screen, size_);
 	}
 	template<class Typ>
 	Point to_screen(const Typ& index) const
@@ -46,28 +47,28 @@ public:
 
 
 
-	static HTri to_h_triangle(const Point& screen, int size)
-	{
-		HTri t;
-		screen2HTri_(t.x, t.y, screen.x, screen.y, size);
-		return t;
-	}
 	static VTri to_v_triangle(const Point& screen, int size)
 	{
 		VTri t;
 		screen2VTri_(t.x, t.y, screen.x, screen.y, size);
 		return t;
 	}
-	static Point to_screen(const HTri& triangle, int size)
+	static HTri to_h_triangle(const Point& screen, int size)
 	{
-		Point p;
-		hTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
-		return p;
+		HTri t;
+		screen2HTri_(t.x, t.y, screen.x, screen.y, size);
+		return t;
 	}
 	static Point to_screen(const VTri& triangle, int size)
 	{
 		Point p;
 		vTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
+		return p;
+	}
+	static Point to_screen(const HTri& triangle, int size)
+	{
+		Point p;
+		hTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
 		return p;
 	}
 
@@ -80,28 +81,28 @@ private:
 	{
 		return (0 < n) - (n < 0);
 	}
-	static inline void screen2HTri_(int& c, int& r, int x, int y, int size)
+	static inline void screen2VTri_(int& c, int& r, int x, int y, int size)
 	{
 		c = (Rt3DOM * (x + size)) / (Rt3NUM * size);
 		r = y - size * c;
 		r += size* sign(r); // offset for rounding
 		r /= (size * 2);
 	}
-	static inline void hTri2Screen_(int& x, int& y, int c, int r, int size)
+	static inline void screen2HTri_(int& c, int& r, int x, int y, int size)
 	{
-		x = (size * c * Rt3NUM) / Rt3DOM;
-		y = size * (2 * r + c);
-	}
-	static inline void screen2VTri_(int& c, int& r, int x, int y, int size)
-	{
-		r = (y + size) / (size*2);
+		r = (y + size) / (size*2) ;
 		x *= Rt3NUM;
 		c = Rt3DOM * 2 * size;
 		x -= (r * c) ;
 		x += c * sign(x);
-		c = x / (c * 2);
+		c = x / (c * 2) ;
 	}
 	static inline void vTri2Screen_(int& x, int& y, int c, int r, int size)
+	{
+		x = (size * c * Rt3NUM) / Rt3DOM;
+		y = size * (2 * r + c);
+	}
+	static inline void hTri2Screen_(int& x, int& y, int c, int r, int size)
 	{ 
 		size *= 2;
 		y = size * r;
@@ -362,32 +363,32 @@ private:
 class MapperH
 {
 public:
-	MapperH(int step = 4)
+	MapperH(int step = 16)
 		: image_(900, 1600, CV_8UC3)
 		, tri_(step)
 		, hex_(step * 9)
-		, cols_(tri_.to_h_triangle(Point(image_.cols,0)).x)
-		, rows_(tri_.to_h_triangle(Point(0, image_.rows)).y)
+		, cols_(tri_.to_v_triangle(Point(image_.cols,0)).x)
+		, rows_(tri_.to_v_triangle(Point(0, image_.rows)).y)
 	{
 		
 	}
 	
 
 
-	HTri screen2tri(cv::Point pixel) const
+	VTri screen2tri(cv::Point pixel) const
 	{
-		return tri_.to_h_triangle(pixel);		
+		return tri_.to_v_triangle(pixel);		
 	}
-	Point tri2screen(const HTri& t) const
+	Point tri2screen(const VTri& t) const
 	{ 
 		return tri_.to_screen(t);
 	}
 
-	HTri screen2hex(cv::Point pixel) const
+	VTri screen2hex(cv::Point pixel) const
 	{
-		return hex_.to_v_triangle(pixel);
+		return hex_.to_h_triangle(pixel);
 	}
-	Point hex2screen(const VTri& t) const
+	Point hex2screen(const HTri& t) const
 	{
 		return hex_.to_screen(t);
 	}
@@ -417,24 +418,83 @@ public:
 		cv::putText(image_, text, p, cv::FONT_HERSHEY_SIMPLEX, scale, colour, thickness, CV_AA, false);
 	}
 
+	struct dot_operator
+	{	
+		dot_operator(const cv::Scalar& colour)
+			:colour(colour[0], colour[1], colour[2])
+		{}
 
-	void draw_dots(const cv::Scalar& colour)
+		void operator()(cv::Mat& image, const Point& pt)
+		{
+			if ((unsigned)pt.x < image.cols && (unsigned)pt.y < image.rows)
+				image.at<cv::Vec3b>(pt) = colour;
+		}
+		
+		cv::Vec3b colour;
+	};
+	struct circle_operator
 	{
-		cv::Vec3b bgr(colour[0], colour[1], colour[2]);
-		HTri t= Point(0,0);
+		circle_operator(int radius, const cv::Scalar& colour, int thickness=1)
+		:radius(radius)
+		, thickness(thickness)
+		,colour(colour[0], colour[1], colour[2])
+		{}
+
+		void operator()(cv::Mat& image, const Point& pt)
+		{
+			cv::circle(image, pt, radius, colour, thickness, CV_AA);
+		}
+
+		int radius;
+		int thickness;
+		cv::Scalar colour;
+	};
+
+
+	//void draw_dots_(const cv::Scalar& colour)
+	//{
+	//	cv::Vec3b bgr(colour[0], colour[1], colour[2]);
+	//	VTri t= Point(0,0);
+	//	for (t.x = 0; t.x<cols_; ++t.x)
+	//	{
+	//		t.y = -t.x / 2;
+	//		int ry = rows_+ t.y;
+	//		for (; t.y<ry; ++t.y)
+	//		{
+	//			cv::Point p = tri_.to_screen(t);
+	//			if ((unsigned)p.x < image_.cols && (unsigned)p.y < image_.rows)
+	//				image_.at<cv::Vec3b>(p) = bgr;
+	//		}
+	//	}
+
+
+	//}
+	template <class DrawOp>
+	void draw_tri_offset(DrawOp& drawop)
+	{
+		VTri t = Point(0, 0);
 		for (t.x = 0; t.x<cols_; ++t.x)
 		{
 			t.y = -t.x / 2;
-			int ry = rows_+ t.y;
-			for (; t.y<ry; ++t.y)
+			for (int ey = rows_ + t.y; t.y<ey; ++t.y)
 			{
-				cv::Point p = tri_.to_screen(t);
-				if ((unsigned)p.x < image_.cols && (unsigned)p.y < image_.rows)
-					image_.at<cv::Vec3b>(p) = bgr;
+				drawop(image_,tri_.to_screen(t));
 			}
 		}
+	}
 
-
+	template <class DrawOp>
+	void draw_hex_offset(DrawOp& drawop)
+	{
+		HTri t = Point(0, 0);
+		for (t.y = 0; t.y<10; ++t.y)
+		{
+			t.x = -t.y / 2;
+			for (int ex=10+t.x; t.x<ex; ++t.x)
+			{
+				drawop(image_, hex_.to_screen(t));
+			}
+		}
 	}
 
 
@@ -443,11 +503,14 @@ public:
 	{
 		int sml = size / 2;
 		int big = (size + 1) / 2;
-		vector<HTri> line = {
-			Point(size * 2, 0),
-			Point(size, 0),
-			Point(0, size),
-			Point(0, size * 2),
+		vector<VTri> line = {
+			Point(size * 2 - 1, 1),
+			Point(size, 1),
+			Point(1, size),
+			Point(1, size * 2-1),
+			Point(size, size*2-1),
+			Point(size*2-1, size),
+			Point(size * 2-1, 1),
 		};
 
 		repeat(line, Point(12, -6), colour);
@@ -504,7 +567,7 @@ private:
 	{
 		int xe = std::min(cols_, cols_ - vx);
 		int ye = std::min(rows_, rows_ - vy);
-		HTri p, v;
+		VTri p, v;
 		v.x = vx;
 		v.y =  vy;
 		for (int x = ox; x < xe; x += size * 2)		
@@ -519,21 +582,21 @@ private:
 			//break;
 		}
 	}
-	void repeat(const vector<HTri>& line, HTri step, const cv::Scalar& colour)
+	void repeat(const vector<VTri>& line, VTri step, const cv::Scalar& colour)
 	{
 		{
 		
-			HTri rstep;// = step;
+			VTri rstep;// = step;
 			rstep.x = step.y;
 			rstep.y = step.x;//(step.x, step.y);
 			for (int i = 1; i < line.size();++i)
 			{
-				HTri p0 = line[i-1];
-				HTri p1 = line[i];
+				VTri p0 = line[i-1];
+				VTri p1 = line[i];
 
 				for (int y = 0; y < 10; ++y)
 				{
-					for (int x = 0; x < 20; ++x)
+					for (int x = 0; x < 10; ++x)
 						draw_line(tri2screen(p0+step*x), tri2screen(p1+step*x), colour);
 
 					p0 += rstep;
@@ -623,7 +686,7 @@ public:
 		:name_(name)
 		, scene_()
 		, draw_(false)
-		, pline(lines.end())
+		, pline(0)
 	{
 		cv::namedWindow(name_);
 		cv::setMouseCallback(name_, mouse_move_callback, this);
@@ -633,7 +696,8 @@ public:
 	void draw(void)
 	{
 		scene_.clear();
-		scene_.draw_dots(cv::Scalar(255, 0,0));
+		scene_.draw_tri_offset(MapperH::dot_operator(cv::Scalar(255, 0,0)));
+		scene_.draw_hex_offset(MapperH::circle_operator(4,cv::Scalar(255, 0, 0)));
 		//scene_.draw_hex_grid(3,1,0,cv::Scalar(128, 0, 0));
 		scene_.draw_hex_grid(6, 0, 0, cv::Scalar(255, 0, 0));
 
@@ -642,8 +706,9 @@ public:
 
 	int show()
 	{
-		int key = cv::waitKey(33);
+		
 		cv::imshow(name_, scene_.image());
+		int key = cv::waitKey(33);
 		return key;
 	}
 
@@ -655,25 +720,25 @@ public:
 		switch (event)
 		{
 		case cv::EVENT_LBUTTONUP:
-			if (pline != lines.end())
+			if (pline != 0)
 			{
 				pline->push_back(scene_.screen2tri(mos_));
 			}
 			break;
 		case cv::EVENT_LBUTTONDOWN:
-			if (pline == lines.end())
+			if (pline == 0)
 			{
-				lines.push_back(vector<HTri>());
-				pline = lines.begin() + lines.size() - 1;
+				lines.push_back(vector<VTri>());
+				pline = &lines.back();
 			}
 			pline->push_back(scene_.screen2tri(mos_));
 			break;
 		case cv::EVENT_RBUTTONDOWN:
-			if (pline != lines.end() && pline->size() < 2)
+			if (pline != 0 && pline->size() < 2)
 			{
-				lines.erase(pline);
+				lines.erase(lines.begin() + (pline-&lines.front()) );
 			}
-			pline = lines.end();
+			pline = 0;
 			break;
 		}
 
@@ -683,18 +748,101 @@ public:
 	}
 
 
-private:
+	void voronoi()
+	{
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+		using boost::polygon::voronoi_builder;
+		using boost::polygon::voronoi_diagram;
 
+		if (lines.empty())
+			return;
+
+		vector<Point> points;
+		for (auto& p : lines.front())
+			points.push_back(scene_.tri2screen(p));
+
+		v_diagram.clear();
+		construct_voronoi(points.begin(), points.end(), &v_diagram);
+
+
+	
+		
+
+	}
+
+private:
 	void draw_lines(void)
 	{
 		const cv::Scalar line_colour = cv::Scalar(255, 0, 255);
 		const cv::Scalar text_colour = cv::Scalar(255, 255, 255);
 
 
-		cv::Mat image = scene_.image();
+		typedef boost::polygon::voronoi_diagram<double>::const_edge_iterator edgeit;
+
+		for (edgeit it = v_diagram.edges().begin(); it != v_diagram.edges().end(); ++it)
+		{
+			const auto& v0 = it->vertex0();
+			const auto& v1 = it->vertex1();
+
+			cv::Scalar colour(255, 255, 255);
+			if (it->is_primary())
+				colour = cv::Scalar(0, 255, 255);
+			else if (it->is_secondary())
+				colour = cv::Scalar(255, 255, 0);
+
+			if (it->is_infinite())
+				colour = cv::Scalar(0, 0, 255);
+			else if (it->is_finite())
+				colour = cv::Scalar(0, 255, 0);
+
+
+
+			const auto& c = it->cell();
+			//cout << c->source_index() << endl;
+
+			//Point p0 = v0 ? Point(v0->x(), v0->y()) : Point();
+			//Point p1 = v1 ? Point(v1->x(), v1->y()) : Point();
+
+			//if (v0 && v1)
+			//{
+			//	//scene_.draw_line(p0, p1, colour);
+			//}
+			//else if (v0)
+			//{
+			//	scene_.draw_circle(p0, 3, colour);
+			//}
+			//else if (v1)
+			//{
+
+			//	scene_.draw_circle(p1, 5, colour);
+			//}
+			int i0 = it->cell()->source_index();
+			int i1 = it->twin()->cell()->source_index();
+			Point p0(scene_.tri2screen(lines.front()[i0]));
+			Point p1(scene_.tri2screen(lines.front()[i1]));
+			if (i0<i1)
+				scene_.draw_line(p0, p1, cv::Scalar(64, 64, 64));
+
+			//cout << "(" << v0->x() << ", " << v0->y() << ")\n";
+			//else
+			//cout << "v0=0\n";
+
+
+
+			//	cout << "(" << v1->x() << ", " << v1->y() << ")\n";
+			//else
+			//	cout << "v1=0\n";
+			//v_points.push_back(Point(v0->x(), v0->y()));
+			//v_points.push_back(Point(v1->x(), v1->y()));
+
+		}
+
+
+		//cv::Mat image = scene_.image();
 		for (int i = 0; i < lines.size(); ++i)
 		{
-			vector<HTri>& line = lines[i];
+			vector<VTri>& line = lines[i];
 			cv::Point p0, p1 = scene_.tri2screen(line[0]);
 			for (int i = 1; i < line.size(); ++i)
 			{
@@ -703,14 +851,17 @@ private:
 				scene_.draw_line(p0, p1, cv::Scalar(255, 0, 255), 1);
 			}
 		}
-		HTri itri = scene_.screen2tri(mos_);
-		VTri ihex = scene_.screen2hex(mos_);
+		VTri itri = scene_.screen2tri(mos_);
+		HTri ihex = scene_.screen2hex(mos_);
 
 		Point tri = scene_.tri2screen(itri);
 		Point hex = scene_.hex2screen(ihex);
 
+		
+		
 
-		if (pline != lines.end())
+
+		if (pline != 0)
 			scene_.draw_line( scene_.tri2screen(pline->back()), tri, line_colour);
 		scene_.draw_circle(tri, 5, cv::Scalar(255, 0, 255));
 		scene_.draw_circle(hex, 12, line_colour);
@@ -738,8 +889,13 @@ private:
 	bool draw_;
 	handler* handler_;
 
-	std::vector< std::vector< HTri > > lines;
-	std::vector< std::vector<  HTri > >::iterator pline;
+	public:
+	std::vector< std::vector< VTri > > lines;
+	boost::polygon::voronoi_diagram<double> v_diagram;
+	private:
+
+	
+	 std::vector< VTri >*  pline;
 
 
 };
@@ -755,6 +911,7 @@ void test_polygon_set()
 	using namespace boost::polygon;
 	PolygonSet ps1;
 	ps1 += rectangle_data<int>(0, 0, 100, 100);
+	printf("rect -> %d points\n", ps1.front().size());
 	PolygonSet ps2;
 	ps2 += rectangle_data<int>(50, 50, 150, 150);
 	PolygonSet ps3;
@@ -781,21 +938,71 @@ void test_polygon_set()
 
 
 
+
+
+
 int main(int argc, char* argv[])
 {
+
+	mapped_image f;
+	const int size = 6;
+	//Point data[] = { { 0, 12 }, { 12, 0 }, { 6, 0 }, { 6, 6 } };
+	Point data[] = { { 2, 7 }, { 7, 2 }, { 10, 5 }, { 5, 10 }, { 2, 7 } };
+	//f.lines.push_back(vector<VTri>(data,data+5));
+	
+
+	//for (auto& p : f.lines.front())
+	//	cout << p << " ";
+	//cout << endl;
+
+	//for (auto& p : f.lines.front())
+	//	Geometry60::reflect30(p,size);
+
+	//for (auto& p : f.lines.front())
+	//	cout << p << " ";
+	//cout << endl;
+
+	//for (auto& p : f.lines.front())
+	//	Geometry60::reflect30(p, size);
+
+	//for (auto& p : f.lines.front())
+	//	cout << p << " ";
+	//cout << endl;
 
 	//test_polygon_set();
 	//return 0;
 	//printf("%f error\n", sqrt(3)-(double)MapperV::NUM/MapperV::DOM);
 
 
-	mapped_image f;
 
-
-	do
+	bool quit = false;
+	while (!quit)
 	{
-		f.draw();		
-	} while (f.show() < 0);
+		f.draw();
+		int key = f.show();
+		switch (key)
+		{
+			case -1:
+				break;
+			case 'q':
+				quit = true;
+				break;
+			case 'v':
+				f.voronoi();
+				break;
+			case '+':
+				for (auto& p : f.lines.front())
+					Geometry60::rot_cw(p, cv::Point(size,size)); //Geometry60::rot_cw(p, size);
+				break;
+			case '-':
+				for (auto& p : f.lines.front())
+					Geometry60::rot_ccw(p, cv::Point(size, size)); //Geometry60::rot_ccw(p, size);
+				break;
+			default:
+				printf("%d '%c' unmapped", key, key);
+				break;
+		}
+	}
 
 
 
