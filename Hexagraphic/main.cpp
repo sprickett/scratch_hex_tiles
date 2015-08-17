@@ -363,10 +363,10 @@ private:
 class MapperH
 {
 public:
-	MapperH(int step = 16)
+	MapperH(int step = 3)
 		: image_(900, 1600, CV_8UC3)
 		, tri_(step)
-		, hex_(step * 9)
+		, hex_(step * 18)
 		, cols_(tri_.to_v_triangle(Point(image_.cols,0)).x)
 		, rows_(tri_.to_v_triangle(Point(0, image_.rows)).y)
 	{
@@ -503,17 +503,26 @@ public:
 	{
 		int sml = size / 2;
 		int big = (size + 1) / 2;
+		//vector<VTri> line = {
+		//	Point(size * 2 - 1, 1),
+		//	Point(size, 1),
+		//	Point(1, size),
+		//	Point(1, size * 2-1),
+		//	Point(size, size*2-1),
+		//	Point(size*2-1, size),
+		//	Point(size * 2-1, 1),
+		//};
 		vector<VTri> line = {
-			Point(size * 2 - 1, 1),
-			Point(size, 1),
-			Point(1, size),
-			Point(1, size * 2-1),
-			Point(size, size*2-1),
-			Point(size*2-1, size),
-			Point(size * 2-1, 1),
+			Point(size * 2 , 0),
+			Point(size, 0),
+			Point(0, size),
+			Point(0, size * 2),
+			Point(size, size * 2),
+			Point(size * 2, size),
+			Point(size * 2, 0),
 		};
 
-		repeat(line, Point(12, -6), colour);
+		repeat(line, Point(size*2, -size), colour);
 
 		//repeat_line(size, 0, size, 0, size, colour);
 		//repeat_line(size, 0, -size, size, size, colour);
@@ -696,10 +705,11 @@ public:
 	void draw(void)
 	{
 		scene_.clear();
+		scene_.draw_hex_grid(12, 0, 0, cv::Scalar(128, 0, 0));
 		scene_.draw_tri_offset(MapperH::dot_operator(cv::Scalar(255, 0,0)));
 		scene_.draw_hex_offset(MapperH::circle_operator(4,cv::Scalar(255, 0, 0)));
 		//scene_.draw_hex_grid(3,1,0,cv::Scalar(128, 0, 0));
-		scene_.draw_hex_grid(6, 0, 0, cv::Scalar(255, 0, 0));
+		
 
 		draw_lines();
 	}
@@ -713,34 +723,66 @@ public:
 	}
 
 	void mouse_move(int event, int x, int y, int flags)
-	{
+	{	
+		
+
 		mos_.x = x;
 		mos_.y = y;
 
-		switch (event)
+		//EVENT_FLAG_LBUTTON
+		//EVENT_FLAG_RBUTTON
+		//EVENT_FLAG_MBUTTON
+		//EVENT_FLAG_CTRLKEY
+		//EVENT_FLAG_SHIFTKEY
+		//EVENT_FLAG_ALTKEY
+		
+		
+		if (flags & cv::EVENT_FLAG_CTRLKEY)
 		{
-		case cv::EVENT_LBUTTONUP:
-			if (pline != 0)
+			Point centre = scene_.screen2tri(scene_.hex2screen(scene_.screen2hex(mos_)));
+			switch (event)
 			{
-				pline->push_back(scene_.screen2tri(mos_));
+			case cv::EVENT_LBUTTONDOWN:
+				for (auto& line : lines)
+				for (auto& point : line)
+					Geometry60::rot_cw(point, centre);
+				break;
+			case cv::EVENT_RBUTTONDOWN:
+				for (auto& line : lines)
+				for (auto& point : line)
+					Geometry60::rot_ccw(point, centre);
+				break;
 			}
-			break;
-		case cv::EVENT_LBUTTONDOWN:
-			if (pline == 0)
-			{
-				lines.push_back(vector<VTri>());
-				pline = &lines.back();
-			}
-			pline->push_back(scene_.screen2tri(mos_));
-			break;
-		case cv::EVENT_RBUTTONDOWN:
-			if (pline != 0 && pline->size() < 2)
-			{
-				lines.erase(lines.begin() + (pline-&lines.front()) );
-			}
-			pline = 0;
-			break;
 		}
+		else
+		{
+			switch (event)
+			{
+			case cv::EVENT_LBUTTONUP:
+				if (pline != 0)
+				{
+					pline->push_back(scene_.screen2tri(mos_));
+				}
+				break;
+			case cv::EVENT_LBUTTONDOWN:
+				if (pline == 0)
+				{
+					lines.push_back(vector<VTri>());
+					pline = &lines.back();
+				}
+				pline->push_back(scene_.screen2tri(mos_));
+				break;
+			case cv::EVENT_RBUTTONDOWN:
+				if (pline != 0 && pline->size() < 2)
+				{
+					lines.erase(lines.begin() + (pline-&lines.front()) );
+				}
+				pline = 0;
+				break;
+			}
+		}
+
+
 
 
 
@@ -876,6 +918,8 @@ private:
 		scene_.draw_text(ss.str(), hex, 0.5, text_colour);
 	}
 
+
+
 	static void mouse_move_callback(int event, int x, int y, int flags, void* userdata)
 	{
 		reinterpret_cast<mapped_image*>(userdata)->mouse_move(event, x, y, flags);
@@ -896,6 +940,8 @@ private:
 
 	
 	 std::vector< VTri >*  pline;
+
+
 
 
 };
