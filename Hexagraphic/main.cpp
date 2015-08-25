@@ -7,6 +7,7 @@ using namespace std;
 
 #include "Polygon.h"
 #include "Geometry60.h"
+#include "HexTile.h"
 
 
 struct HTri :public Point
@@ -21,6 +22,48 @@ struct VTri :public Point
 };
 //struct VHex :public Point{};
 //struct HHex :public Point{};
+
+void test_polygon(PolygonSet& polyset)
+{
+	using namespace boost::polygon::operators;
+	using namespace boost::polygon;
+	
+	if (polyset.empty())
+		return;
+
+	PolygonSet ps;
+	assign(ps, polyset);
+
+	printf("test polygon\n");
+	for (auto& p : polyset.front())
+		printf("(%d, %d) ", p.x, p.y);
+	printf("\n");
+		
+	if (ps.empty())
+	{
+		printf("not a valid polygon\n");
+		return;
+	}
+
+	printf("%d %d %d %d\n", ps.size(), ps.front().size(), winding(ps.front()), polyset.size());
+	for (auto& p : ps.front())
+		printf("(%d, %d) ", p.x, p.y); //printf("(%d, %d) ", p.x(), p.y());
+	printf("\n");
+
+	//PolygonSet tps;
+	//get_trapezoids(tps, ps);
+	//printf("pwh %d\n ", tps.size());
+	//for (auto& ply : tps)
+	//{
+	//	for (auto& p : ply)
+	//		printf("(%d, %d) ", p.x, p.y);
+	//	printf("\n");
+	//}
+	
+	polyset = ps;
+		
+
+}
 
 
 class Mapping
@@ -38,11 +81,19 @@ public:
 	{
 		return to_h_triangle(screen, size_);
 	}
-	template<class Typ>
-	Point to_screen(const Typ& index) const
+	Point v_tri_to_screen(const VTri& triangle) const
 	{
-		return to_screen(index, size_);
+		return v_tri_to_screen(triangle,size_);
 	}
+	Point h_tri_to_screen(const HTri& triangle) const
+	{
+		return h_tri_to_screen(triangle,size_);
+	}
+	//template<class Typ>
+	//Point to_screen(const Typ& index) const
+	//{
+	//	return to_screen(index, size_);
+	//}
 
 
 
@@ -59,13 +110,13 @@ public:
 		screen2HTri_(t.x, t.y, screen.x, screen.y, size);
 		return t;
 	}
-	static Point to_screen(const VTri& triangle, int size)
+	static Point v_tri_to_screen(const VTri& triangle, int size)
 	{
 		Point p;
 		vTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
 		return p;
 	}
-	static Point to_screen(const HTri& triangle, int size)
+	static Point h_tri_to_screen(const HTri& triangle, int size)
 	{
 		Point p;
 		hTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
@@ -113,250 +164,7 @@ private:
 	int size_;
 };
 
-class MapperV
-{
-public:
-	MapperV(int step = 15)
-		: image_(900, 1600, CV_8UC3)
-		,step_(step)
-		, cols_(std::min(256, (image_.cols) / (step_ * 2)))
-		, rows_(std::min(256, (image_.rows * DOM)/ (step_* NUM)))
-		, ox_((image_.cols - (cols_*step_ * 2)) / 2)
-		, oy_((image_.rows - (rows_*step_ * sqrt(3))) / 2)
-		, my_(oy_ - (step_ * NUM) / DOM* 2)
-		//, cols_(std::min(256, (image_.cols) / (step_ * 2)))
-		//, rows_(std::min(256, int(image_.rows / (step_*rt3))))
-		//, ox_((image_.cols - (cols_*step_ * 2)) / 2)
-		//, oy_((image_.rows - (rows_*step_ * rt3)) / 2)
-		//, my_(oy_ - step_ * rt3 * 0.5)
-		, colour_(255,0,255)
 
-	{
-
-	}
-	enum Root3
-	{
-		//NUM = 26, DOM = 15, //-0.00128253
-		//NUM = 71, DOM = 41, //0.00034349
-		//NUM = 97, DOM = 56, //-9.20496e-005
-		//NUM = 265, DOM = 153, //2.46638e-005
-		//NUM = 362, DOM = 209, //-6.6087e-006
-		//NUM = 989, DOM = 571, //1.77079e-006
-		//NUM = 1351, DOM = 780, //-4.74482e-007
-		NUM = 3691, DOM = 2131, //1.27137e-007
-		//NUM = 5042, DOM = 2911, //-3.40663e-008
-		//NUM = 13775, DOM = 7953, //9.12804e-009
-		//NUM = 18817, DOM = 10864, //-2.44585e-009
-		//NUM = 51409, DOM = 29681, //6.55364e-010
-		//NUM = 70226, DOM = 40545, //-1.75604e-010
-		//NUM = 191861, DOM = 110771, //4.70528e-011
-		//NUM = 262087, DOM = 151316, //-1.26079e-011
-		//NUM = 716035, DOM = 413403, //3.37819e-012
-		//NUM = 978122, DOM = 564719, //-9.05276e-013
-		//NUM = 2672279, DOM = 1542841, //2.42473e-013
-		//NUM = 3650401, DOM = 2107560, //-6.50591e-014
-		//NUM = 9973081, DOM = 5757961, //1.73195e-014
-		//NUM = 13623482, DOM = 7865521, //-4.66294e-015
-	};
-
-
-
-	cv::Vec2b screen2tri(cv::Point pixel) const
-	{
-		int x = pixel.x - ox_ + step_;
-		int y = pixel.y- my_;
-		y = (DOM * y) / (NUM*step_); 
-		x -= step_*(y & 1);
-		x /= step_ * 2;
-		return cv::Vec2s(x,y);
-	}
-
-	cv::Point tri2screen(const cv::Vec2b& v) const
-	{
-		return cv::Point(
-			ox_ + step_* (v[0] * 2 + (v[1] & 1)),
-			oy_ + (step_ * v[1] * NUM) / DOM);
-	}
-	
-	cv::Vec2b tri2hex(cv::Vec2b index, int size) //const
-	{
-		int x = index[0] / size;
-		int rx = index[0] % size;
-		int y = index[1] / (size*2);
-		int ry = index[1] % (size * 2);
-
-		int rx3 = x % 3;
-		x /= 3;
-		int oddx = x & 1;
-		int fwd = (y & 1) ^ oddx;
-		y = (y - oddx) / 2u;
-
-		if (!rx3)
-		{
-			
-			
-			if (fwd)
-			{
-				if (rx * 2 <= ry)
-				{
-					y += oddx;
-					--x;
-				}
-			}
-			else
-			{
-				if ((size - rx) * 2 >= ry)
-				{
-					--x;
-					y -= x & 1;
-				}
-			}
-		}
-		return cv::Vec2b(x,y);
-	}
-	cv::Vec2b hex2tri(cv::Vec2b index, int size) const
-	{
-		const int sz2 = size * 2;
-		return cv::Vec2b(index[0] * size * 3 + sz2, (index[1] * 2 + 1 + (index[0]&1))  * sz2);
-	}
-	//cv::Vec2b get_hexagon(cv::Vec2b index) const
-	//{
-	//	int x = index[0] / 9;
-	//	int rx = index[0] % 9;
-	//	int y = (index[1] - (x & 1) * 6) / 12;
-	//	return cv::Vec2b(x, y);
-	//}
-
-
-	//cv::Vec2b get_index(int x, int y) const
-	//{
-	//	x -= my_;//ox_ - step_;
-	//	y -= oy_ - step_; 
-	//	x = int(x / (rt3*step_)); // ! double to int	
-	//	y -= step_*(x & 1);	
-	//	y /= step_ * 2;
-	//	return cv::Vec2b(x, y);
-	//}
-	//cv::Point get_point(const cv::Vec2b& v) const
-	//{
-	//	return cv::Point(
-	//		ox_ + v[0] * rt3*step_,
-	//		oy_ + (v[0] & 1)*step_ + step_*v[1] * 2);
-	//}
-
-	void clear(const cv::Scalar& colour = cv::Scalar())
-	{
-		image_.setTo(colour);
-	}
-
-
-	//void draw_line(const cv::Vec2b& p0, const cv::Vec2b& p1, const cv::Scalar& colour, int thickness = 1)
-	//{
-	//	draw_line(get_point(p0), get_point(p1), colour, thickness);
-	//}
-
-
-	void draw_point(const cv::Point& p, const cv::Scalar& colour)
-	{
-		image_.at<cv::Vec3b>(p) = cv::Vec3b(128, 128, 128);
-	}
-	void draw_line(const cv::Point& p0, const cv::Point& p1, const cv::Scalar& colour, int thickness=1)
-	{
-		cv::line(image_, p0, p1, colour, thickness, CV_AA);
-	}
-	void draw_circle(const cv::Point& p0, int radius, const cv::Scalar& colour, int thickness = 1)
-	{
-		cv::circle(image_, p0, radius, colour_, thickness, CV_AA);
-	}
-	void draw_text(const std::string& text, const cv::Point& p, double scale, const cv::Scalar& colour, int thickness = 1)
-	{
-		cv::putText(image_, text, p, cv::FONT_HERSHEY_SIMPLEX, scale, colour, thickness, CV_AA, false);
-	}
-
-
-	void draw_dots(const cv::Scalar& colour)
-	{
-		cv::Vec3b bgr(colour[0], colour[1], colour[2]);
-		for (int y = 0;y<rows_; ++y)
-		{
-			for (int x = 0;x<cols_; ++x)
-			{
-				image_.at<cv::Vec3b>(tri2screen(cv::Vec2b(x, y))) = bgr;
-			}
-		}
-	}
-
-
-
-	void draw_hex_grid(int size, int ox, int oy, const cv::Scalar& colour = cv::Scalar(255, 255, 255))
-	{
-		int sml = size / 2;
-		int big = (size + 1) / 2;
-
-		repeat_line( ox + big,          oy + 0, size, 0,    size, colour);
-		repeat_line( ox + size * 2,  oy + size, size, 0,    size, colour);
-		repeat_line( ox + big,          oy + 0, -big, size, size, colour);
-		repeat_line( ox + size * 2,  oy + size, -sml, size, size, colour);
-		repeat_line( ox + 0,         oy + size,  big, size, size, colour);
-		repeat_line( ox + size + big,   oy + 0,  sml, size, size, colour);
-	}
-
-	//void draw_hex_grid(int size, int ox, int oy, const cv::Scalar& colour = cv::Scalar(255, 255, 255))
-	//{
-	//	int sml = size / 2;
-	//	int big = (size + 1) / 2;
-
-	//	repeat_line(0, 1, sml, 0, size, colour);
-	//	//repeat_line(ox + size * 2, oy + size, size, 0, size, colour);
-	//	//repeat_line(ox + big, oy + 0, -big, size, size, colour);
-	//	//repeat_line(ox + size * 2, oy + size, -sml, size, size, colour);
-	//	//repeat_line(ox + 0, oy + size, big, size, size, colour);
-	//	//repeat_line(ox + size + big, oy + 0, sml, size, size, colour);
-	//}
-	
-
-
-	int cols(void)
-	{
-		return cols_;
-	}
-	int rows(void)
-	{
-		return rows_;
-	}
-	cv::Mat image(void)
-	{
-		return image_;
-	}
-
-
-private:
-	void repeat_line( int ox, int oy, int vx, int vy, int size, const cv::Scalar& colour)
-	{
-		int xe = std::min(cols_, cols_-vx);
-		int ye = std::min(rows_, rows_ - vy);
-		for (int y = oy; y< ye; y += size * 2)
-		{
-			for (int x = ox; x <xe; x += size * 3)
-			{
-				draw_line(tri2screen(cv::Vec2b(x, y)), tri2screen(cv::Vec2b(x + vx, y + vy)), colour);
-			}
-		}
-	}
-
-	const static double rt3;
-	std::string name_;
-	cv::Mat image_;
-	int step_;
-	int hex_;
-	int cols_;
-	int rows_;
-	int ox_;
-	int oy_;
-	int my_;
-	cv::Scalar colour_;
-	friend class MapperH;
-};
 
 
 
@@ -381,7 +189,7 @@ public:
 	}
 	Point tri2screen(const VTri& t) const
 	{ 
-		return tri_.to_screen(t);
+		return tri_.v_tri_to_screen(t);
 	}
 
 	VTri screen2hex(cv::Point pixel) const
@@ -390,7 +198,7 @@ public:
 	}
 	Point hex2screen(const HTri& t) const
 	{
-		return hex_.to_screen(t);
+		return hex_.h_tri_to_screen(t);
 	}
 
 
@@ -478,7 +286,7 @@ public:
 			t.y = -t.x / 2;
 			for (int ey = rows_ + t.y; t.y<ey; ++t.y)
 			{
-				drawop(image_,tri_.to_screen(t));
+				drawop(image_,tri_.v_tri_to_screen(t));
 			}
 		}
 	}
@@ -492,7 +300,7 @@ public:
 			t.x = -t.y / 2;
 			for (int ex=10+t.x; t.x<ex; ++t.x)
 			{
-				drawop(image_, hex_.to_screen(t));
+				drawop(image_, hex_.h_tri_to_screen(t));
 			}
 		}
 	}
@@ -739,13 +547,40 @@ public:
 		
 		if (flags & cv::EVENT_FLAG_CTRLKEY)
 		{
+			typedef cv::Matx<int, 2, 2> Mat22;
+			Mat22 rD(0, -1, -1, 0);
+			Mat22 rS(1, 0, -1, -1);
+			Mat22 rT(0, 1, 1, 0);
+			Mat22 rI(1, 0, 0, 1);
+
+			
+
+			//Mat22 rm = rT*rS; // ccw 1
+			//Mat22 rm = rS*rD; // ccw 2
+			Mat22 rm = rD*rD; // cc/ccw 3
+
+			//Mat22 rm = rT*rT; // cc/ccw 3
+			//Mat22 rm = rS*rT; // cc 1
+			//Mat22 rm = rD*rS; // ccw 2
+
+
+
+
 			Point centre = scene_.screen2tri(scene_.hex2screen(scene_.screen2hex(mos_)));
 			switch (event)
 			{
 			case cv::EVENT_LBUTTONDOWN:
-				for (auto& line : lines)
-				for (auto& point : line)
-					Geometry60::rot_cw(point, centre);
+				for (int j = 0; j < lines.size(); ++j)
+				{
+					for (int i = 0; i < lines[j].size();++i)
+					{
+						lines[j][i] = centre + rm * (centre - lines[j][i]);
+						//point = Point(point.y,point.x);
+						//Geometry60::rot(point, centre, 4);
+					}
+					
+				}
+				
 				break;
 			case cv::EVENT_RBUTTONDOWN:
 				for (auto& line : lines)
@@ -761,7 +596,7 @@ public:
 			case cv::EVENT_LBUTTONUP:
 				if (pline != 0)
 				{
-					pline->push_back(scene_.screen2tri(mos_));
+					pline->back() = scene_.screen2tri(mos_);		
 				}
 				break;
 			case cv::EVENT_LBUTTONDOWN:
@@ -797,12 +632,20 @@ public:
 		using boost::polygon::voronoi_builder;
 		using boost::polygon::voronoi_diagram;
 
+		
+
 		if (lines.empty())
 			return;
 
 		vector<Point> points;
 		for (auto& p : lines.front())
-			points.push_back(scene_.tri2screen(p));
+			points.push_back(p);// scene_.tri2screen(p)); //
+
+		//test_polygon(points);
+
+		lines.front().clear();
+		for (auto& p : points)
+			lines.front().push_back(p);// scene_.screen2tri(p)); //
 
 		v_diagram.clear();
 		construct_voronoi(points.begin(), points.end(), &v_diagram);
@@ -820,8 +663,23 @@ private:
 		const cv::Scalar text_colour = cv::Scalar(255, 255, 255);
 
 
+		typedef boost::polygon::voronoi_diagram<double>::const_cell_iterator cellit;
 		typedef boost::polygon::voronoi_diagram<double>::const_edge_iterator edgeit;
 
+		int j = 0;
+		for (cellit it = v_diagram.cells().begin(); it != v_diagram.cells().end(); ++it)
+		{
+			int i = it->source_index();
+			Point p(scene_.tri2screen(lines.front()[i]));
+			//scene_.draw_circle(p, (i+1)*2, cv::Scalar(64, 64, 255));
+			//for (edgeit eit = it->->edges().begin(); it != v_diagram.edges().end(); ++it)
+			//{
+
+			//}
+
+		}
+
+		
 		for (edgeit it = v_diagram.edges().begin(); it != v_diagram.edges().end(); ++it)
 		{
 			const auto& v0 = it->vertex0();
@@ -936,6 +794,9 @@ private:
 	public:
 	std::vector< std::vector< VTri > > lines;
 	boost::polygon::voronoi_diagram<double> v_diagram;
+
+	PolygonSet polygons_;
+
 	private:
 
 	
@@ -948,7 +809,7 @@ private:
 
 
 
-const double MapperV::rt3 = 1.7320508075688772935274463415059;
+
 
 
 void test_polygon_set() 
@@ -983,18 +844,109 @@ void test_polygon_set()
 
 
 
+int xrand(int x)
+{
+	return x + rand() % x - rand() % x;
+}
+
+static void thing_mouse_move(int event, int x, int y, int flags, void* userdata)
+{
+	vector<Point>& points = *reinterpret_cast<vector<Point>*>(userdata);
+	Point mos(x, y);
+	static int grab = -1;
+	int mn = numeric_limits<int>::max();
+	int mni = 0;
+	
+	switch (event)
+	{
+	case cv::EVENT_LBUTTONUP:
+		grab = -1;
+		break;
+	case cv::EVENT_LBUTTONDOWN:
+	{
+		for (int i = 0; i < points.size(); ++i)
+		{
+			Point v = mos - points[i];
+			int dot = v.dot(v);
+			if (mn > dot)
+			{
+				mni = i;
+				mn = dot;
+			}	
+		}
+		if (mn < 64)
+			grab = mni;
+	}
+		break;
+	}
+	if (grab >= 0)
+		points[grab] = mos;
+
+}
+void run_thing(void)
+{
+	const int sz = 256;
+	cv::Mat im(sz * 2, sz * 2, CV_8UC3);
+	vector<Point> points = { 
+		{ xrand(sz), xrand(sz) }, 
+		{ xrand(sz), xrand(sz) }, 
+		{ xrand(sz), xrand(sz) }
+	};
+	cv::namedWindow("boo");
+	cv::setMouseCallback("boo", thing_mouse_move, &points);
+
+	cv::Point cen(sz, sz);
+	for (;;)
+	{
+		im.setTo(0);
+
+		cv::Point2f a = points[0] - cen;
+		cv::Point2f b = points[1] - cen;
+		cv::Point2f q = points[2] - cen;
+
+		a *= 1.f / sqrt(a.dot(a));
+		b *= 1.f / sqrt(b.dot(b));
+		q *= 1.f / sqrt(q.dot(q));
+	
+		
+		float ab = a.dot(b);
+		float aq = a.dot(q);
+
+		//cout << a << b<<axb << bxa << endl;
 
 
+		cv::line(im, cen, cv::Point2f(sz, sz + ab*sz*0.5), cv::Scalar(255, 255, 255), 1, CV_AA);
+		cv::line(im, cen, cv::Point2f( sz + aq*sz*0.5,sz), cv::Scalar(255, 255, 255), 1, CV_AA);
+		//cv::line(im, cen, cv::Point2f(sz, sz) + bxa*sz*0.5, cv::Scalar(255, 255, 255), 1, CV_AA);
+
+		cv::line(im, cen, points[0], cv::Scalar(255, 0, 128), 1, CV_AA);
+		cv::line(im, cen, points[1], cv::Scalar(128, 0, 255), 1, CV_AA);
+		cv::line(im, cen, points[2], cv::Scalar(0, 200, 0), 1, CV_AA);
+
+		cv::imshow("boo", im);
+		int key = cv::waitKey(1);
+		if (key >= 0)
+			break;
+	}
+}
 
 
 int main(int argc, char* argv[])
 {
 
+	//run_thing();
+
+
+	//return 0;
 	mapped_image f;
 	const int size = 6;
 	//Point data[] = { { 0, 12 }, { 12, 0 }, { 6, 0 }, { 6, 6 } };
 	Point data[] = { { 2, 7 }, { 7, 2 }, { 10, 5 }, { 5, 10 }, { 2, 7 } };
 	//f.lines.push_back(vector<VTri>(data,data+5));
+
+
+
+	
 	
 
 	//for (auto& p : f.lines.front())
