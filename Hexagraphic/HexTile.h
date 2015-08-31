@@ -270,30 +270,21 @@ public:
 		int y = p.y / HEX_SIDE - negy;
 		int xr = p.x % HEX_SIDE + negx * HEX_SIDE;
 		int yr = p.y % HEX_SIDE + negy * HEX_SIDE;
-
-		int d = x - y;	
 		int q = (x - y) % 3; // -2 -1 0 1 2
-		q += 3 * (q < 0);
-		
-		if (q & 1)
-			--x;
-		else if (q == 2)
-			--y;
 
-		int hx = (x - y) / 3;
-
-		if (q == 0 && xr + yr < HEX_SIDE)
-			--y;
-		
-		return Point(hx, y+hx);
+		q += (q < 0) * 3;
+		x -= q & 1;
+		y -= q == 2;
+		x = (x - y) / 3;
+		y += x - ((q == 0) & (xr + yr < HEX_SIDE));
+		return Point(x, y);
 	}
-	//static Point hexagon_centre(const Point& p)
-	//{
-	//	int x = p.x + 1;
-	//	int y = p.y + 1 - x;
-	//	
-
-	//}
+	static Point hexagon_centre(const Point& p)
+	{
+		int y = p.y - p.x + 1;
+		int x = p.x * 3 + y;	
+		return Point(x*HEX_SIDE, y*HEX_SIDE);
+	}
 
 
 	friend bool operator<(const HexPoly& lhs, const HexPoly& rhs);

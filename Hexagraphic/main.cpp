@@ -757,10 +757,11 @@ private:
 		Point itri = scene_.screen2tri(mos_);
 
 		Point ihex = hx::HexPoly::nearest_hexagon(itri);
+
 		//Point ihex = scene_.screen2hex(mos_);
 
 		Point tri = scene_.tri2screen(itri);
-		//Point hex = scene_.hex2screen(ihex);
+		Point hex = scene_.tri2screen(hx::HexPoly::hexagon_centre(ihex));
 
 		
 		
@@ -769,7 +770,7 @@ private:
 		if (pline != 0)
 			scene_.draw_line( scene_.tri2screen(pline->back()), tri, line_colour);
 		scene_.draw_circle(tri, 5, cv::Scalar(255, 0, 255));
-		//scene_.draw_circle(hex, 12, line_colour);
+		scene_.draw_circle(hex, 12, line_colour);
 		//scene_.draw_circle( , 12, line_colour);
 
 		stringstream ss;
