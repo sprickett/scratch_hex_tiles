@@ -10,18 +10,41 @@ using namespace std;
 #include "HexTile.h"
 
 
-struct HTri :public Point
+//struct Point :public Point
+//{
+//	Point(const Point& p = Point())
+//	:Point(p){};
+//};
+//struct Point :public Point
+//{
+//	Point(const Point& p = Point())
+//	:Point(p){};
+//};
+void filter(Polygon& poly)
 {
-	HTri(const Point& p = Point())
-	:Point(p){};
-};
-struct VTri :public Point
+	if (poly.empty())
+		return;
+
+	const unsigned sz = poly.size();
+	Polygon filt(1,poly.front());
+	filt.reserve(sz);
+	unsigned i;
+
+	for (i = 0; i < sz - 2; ++i)
+	{
+		Point v = poly[i + 1] - poly[i];
+		if (v.cross(poly[i + 2] - poly[i + 1]))
+			filt.push_back(poly[i + 1]);
+	}
+	filt.push_back(poly[i + 1]);
+	swap(poly, filt);	
+}
+
+void filter(PolygonSet& ps)
 {
-	VTri(const Point& p = Point())
-	:Point(p){};
-};
-//struct VHex :public Point{};
-//struct HHex :public Point{};
+	for (auto& poly : ps)
+		filter(poly);
+}
 
 void test_polygon(PolygonSet& polyset)
 {
@@ -31,24 +54,20 @@ void test_polygon(PolygonSet& polyset)
 	if (polyset.empty())
 		return;
 
-	PolygonSet ps;
-	assign(ps, polyset);
+	clean(polyset);
+	filter(polyset);
 
-	printf("test polygon\n");
-	for (auto& p : polyset.front())
-		printf("(%d, %d) ", p.x, p.y);
-	printf("\n");
-		
-	if (ps.empty())
-	{
-		printf("not a valid polygon\n");
-		return;
-	}
+	rectangle_data<int> rect;
+	extents(rect, polyset);
+	Point c((xl(rect) + xh(rect))/2, (yl(rect) + yh(rect))/2);
 
-	printf("%d %d %d %d\n", ps.size(), ps.front().size(), winding(ps.front()), polyset.size());
-	for (auto& p : ps.front())
-		printf("(%d, %d) ", p.x, p.y); //printf("(%d, %d) ", p.x(), p.y());
-	printf("\n");
+	printf("centre %d, %d\n", c.x,c.y);
+	hx::HexPoly h(polyset, c);
+
+	rectangle_data<int> rect2 = rect;
+	bloat(rect2, 1);
+	bloat(rect, 2);
+	polyset += rect2 ^ rect;
 
 	//PolygonSet tps;
 	//get_trapezoids(tps, ps);
@@ -60,10 +79,12 @@ void test_polygon(PolygonSet& polyset)
 	//	printf("\n");
 	//}
 	
-	polyset = ps;
-		
+	
+	//get_trapezoids(polyset, ps);
 
 }
+
+
 
 
 class Mapping
@@ -73,19 +94,19 @@ public:
 		:size_(size)
 	{}
 
-	VTri to_v_triangle(const Point& screen) const
+	Point to_v_triangle(const Point& screen) const
 	{
 		return to_v_triangle(screen, size_);
 	}
-	HTri to_h_triangle(const Point& screen) const
+	Point to_h_triangle(const Point& screen) const
 	{
 		return to_h_triangle(screen, size_);
 	}
-	Point v_tri_to_screen(const VTri& triangle) const
+	Point v_tri_to_screen(const Point& triangle) const
 	{
 		return v_tri_to_screen(triangle,size_);
 	}
-	Point h_tri_to_screen(const HTri& triangle) const
+	Point h_tri_to_screen(const Point& triangle) const
 	{
 		return h_tri_to_screen(triangle,size_);
 	}
@@ -98,25 +119,25 @@ public:
 
 
 
-	static VTri to_v_triangle(const Point& screen, int size)
+	static Point to_v_triangle(const Point& screen, int size)
 	{
-		VTri t;
+		Point t;
 		screen2VTri_(t.x, t.y, screen.x, screen.y, size);
 		return t;
 	}
-	static HTri to_h_triangle(const Point& screen, int size)
+	static Point to_h_triangle(const Point& screen, int size)
 	{
-		HTri t;
+		Point t;
 		screen2HTri_(t.x, t.y, screen.x, screen.y, size);
 		return t;
 	}
-	static Point v_tri_to_screen(const VTri& triangle, int size)
+	static Point v_tri_to_screen(const Point& triangle, int size)
 	{
 		Point p;
 		vTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
 		return p;
 	}
-	static Point h_tri_to_screen(const HTri& triangle, int size)
+	static Point h_tri_to_screen(const Point& triangle, int size)
 	{
 		Point p;
 		hTri2Screen_(p.x, p.y, triangle.x, triangle.y, size);
@@ -183,20 +204,20 @@ public:
 	
 
 
-	VTri screen2tri(cv::Point pixel) const
+	Point screen2tri(cv::Point pixel) const
 	{
 		return tri_.to_v_triangle(pixel);		
 	}
-	Point tri2screen(const VTri& t) const
+	Point tri2screen(const Point& t) const
 	{ 
 		return tri_.v_tri_to_screen(t);
 	}
 
-	VTri screen2hex(cv::Point pixel) const
+	Point screen2hex(cv::Point pixel) const
 	{
 		return hex_.to_h_triangle(pixel);
 	}
-	Point hex2screen(const HTri& t) const
+	Point hex2screen(const Point& t) const
 	{
 		return hex_.h_tri_to_screen(t);
 	}
@@ -262,7 +283,7 @@ public:
 	//void draw_dots_(const cv::Scalar& colour)
 	//{
 	//	cv::Vec3b bgr(colour[0], colour[1], colour[2]);
-	//	VTri t= Point(0,0);
+	//	Point t= Point(0,0);
 	//	for (t.x = 0; t.x<cols_; ++t.x)
 	//	{
 	//		t.y = -t.x / 2;
@@ -280,7 +301,7 @@ public:
 	template <class DrawOp>
 	void draw_tri_offset(DrawOp& drawop)
 	{
-		VTri t = Point(0, 0);
+		Point t = Point(0, 0);
 		for (t.x = 0; t.x<cols_; ++t.x)
 		{
 			t.y = -t.x / 2;
@@ -294,7 +315,7 @@ public:
 	template <class DrawOp>
 	void draw_hex_offset(DrawOp& drawop)
 	{
-		HTri t = Point(0, 0);
+		Point t = Point(0, 0);
 		for (t.y = 0; t.y<10; ++t.y)
 		{
 			t.x = -t.y / 2;
@@ -311,7 +332,7 @@ public:
 	{
 		int sml = size / 2;
 		int big = (size + 1) / 2;
-		//vector<VTri> line = {
+		//vector<Point> line = {
 		//	Point(size * 2 - 1, 1),
 		//	Point(size, 1),
 		//	Point(1, size),
@@ -320,7 +341,7 @@ public:
 		//	Point(size*2-1, size),
 		//	Point(size * 2-1, 1),
 		//};
-		vector<VTri> line = {
+		vector<Point> line = {
 			Point(size * 2 , 0),
 			Point(size, 0),
 			Point(0, size),
@@ -384,7 +405,7 @@ private:
 	{
 		int xe = std::min(cols_, cols_ - vx);
 		int ye = std::min(rows_, rows_ - vy);
-		VTri p, v;
+		Point p, v;
 		v.x = vx;
 		v.y =  vy;
 		for (int x = ox; x < xe; x += size * 2)		
@@ -399,17 +420,17 @@ private:
 			//break;
 		}
 	}
-	void repeat(const vector<VTri>& line, VTri step, const cv::Scalar& colour)
+	void repeat(const vector<Point>& line, Point step, const cv::Scalar& colour)
 	{
 		{
 		
-			VTri rstep;// = step;
+			Point rstep;// = step;
 			rstep.x = step.y;
 			rstep.y = step.x;//(step.x, step.y);
 			for (int i = 1; i < line.size();++i)
 			{
-				VTri p0 = line[i-1];
-				VTri p1 = line[i];
+				Point p0 = line[i-1];
+				Point p1 = line[i];
 
 				for (int y = 0; y < 10; ++y)
 				{
@@ -570,11 +591,11 @@ public:
 			switch (event)
 			{
 			case cv::EVENT_LBUTTONDOWN:
-				for (int j = 0; j < lines.size(); ++j)
+				for (int j = 0; j < polyset_.size(); ++j)
 				{
-					for (int i = 0; i < lines[j].size();++i)
+					for (int i = 0; i < polyset_[j].size(); ++i)
 					{
-						lines[j][i] = centre + rm * (centre - lines[j][i]);
+						polyset_[j][i] = centre + rm * (centre - polyset_[j][i]);
 						//point = Point(point.y,point.x);
 						//Geometry60::rot(point, centre, 4);
 					}
@@ -583,8 +604,8 @@ public:
 				
 				break;
 			case cv::EVENT_RBUTTONDOWN:
-				for (auto& line : lines)
-				for (auto& point : line)
+				for (auto& poly : polyset_)
+				for (auto& point : poly)
 					Geometry60::rot_ccw(point, centre);
 				break;
 			}
@@ -602,15 +623,15 @@ public:
 			case cv::EVENT_LBUTTONDOWN:
 				if (pline == 0)
 				{
-					lines.push_back(vector<VTri>());
-					pline = &lines.back();
+					polyset_.push_back(vector<Point>());
+					pline = &polyset_.back();
 				}
 				pline->push_back(scene_.screen2tri(mos_));
 				break;
 			case cv::EVENT_RBUTTONDOWN:
 				if (pline != 0 && pline->size() < 2)
 				{
-					lines.erase(lines.begin() + (pline-&lines.front()) );
+					polyset_.erase(polyset_.begin() + (pline - &polyset_.front()));
 				}
 				pline = 0;
 				break;
@@ -632,23 +653,34 @@ public:
 		using boost::polygon::voronoi_builder;
 		using boost::polygon::voronoi_diagram;
 
-		
+		pline = 0;
 
-		if (lines.empty())
+		if (polyset_.empty())
 			return;
 
-		vector<Point> points;
-		for (auto& p : lines.front())
-			points.push_back(p);// scene_.tri2screen(p)); //
+		clean(polyset_);
+		filter(polyset_);
 
-		//test_polygon(points);
+		rectangle_data<int> rect;
+		extents(rect, polyset_);
+		Point c((xl(rect) + xh(rect)) / 2, (yl(rect) + yh(rect)) / 2);
+		c = scene_.tri2screen(c);
+		c = scene_.screen2hex(c);
+		c = scene_.hex2screen(c);
+		c = scene_.screen2tri(c);
 
-		lines.front().clear();
-		for (auto& p : points)
-			lines.front().push_back(p);// scene_.screen2tri(p)); //
 
-		v_diagram.clear();
-		construct_voronoi(points.begin(), points.end(), &v_diagram);
+		printf("centre %d, %d\n", c.x, c.y);
+		hx::HexPoly h(polyset_, c);
+
+		//rectangle_data<int> rect2 = rect;
+		//bloat(rect2, 1);
+		//bloat(rect, 2);
+		//polyset_ += rect2 ^ rect;	
+
+		
+		//v_diagram.clear();
+		//construct_voronoi(points.begin(), points.end(), &v_diagram);
 
 
 	
@@ -670,7 +702,7 @@ private:
 		for (cellit it = v_diagram.cells().begin(); it != v_diagram.cells().end(); ++it)
 		{
 			int i = it->source_index();
-			Point p(scene_.tri2screen(lines.front()[i]));
+			Point p(scene_.tri2screen(polyset_.front()[i]));
 			//scene_.draw_circle(p, (i+1)*2, cv::Scalar(64, 64, 255));
 			//for (edgeit eit = it->->edges().begin(); it != v_diagram.edges().end(); ++it)
 			//{
@@ -696,53 +728,22 @@ private:
 			else if (it->is_finite())
 				colour = cv::Scalar(0, 255, 0);
 
-
-
 			const auto& c = it->cell();
-			//cout << c->source_index() << endl;
-
-			//Point p0 = v0 ? Point(v0->x(), v0->y()) : Point();
-			//Point p1 = v1 ? Point(v1->x(), v1->y()) : Point();
-
-			//if (v0 && v1)
-			//{
-			//	//scene_.draw_line(p0, p1, colour);
-			//}
-			//else if (v0)
-			//{
-			//	scene_.draw_circle(p0, 3, colour);
-			//}
-			//else if (v1)
-			//{
-
-			//	scene_.draw_circle(p1, 5, colour);
-			//}
+	
 			int i0 = it->cell()->source_index();
 			int i1 = it->twin()->cell()->source_index();
-			Point p0(scene_.tri2screen(lines.front()[i0]));
-			Point p1(scene_.tri2screen(lines.front()[i1]));
+			Point p0(scene_.tri2screen(polyset_.front()[i0]));
+			Point p1(scene_.tri2screen(polyset_.front()[i1]));
 			if (i0<i1)
 				scene_.draw_line(p0, p1, cv::Scalar(64, 64, 64));
-
-			//cout << "(" << v0->x() << ", " << v0->y() << ")\n";
-			//else
-			//cout << "v0=0\n";
-
-
-
-			//	cout << "(" << v1->x() << ", " << v1->y() << ")\n";
-			//else
-			//	cout << "v1=0\n";
-			//v_points.push_back(Point(v0->x(), v0->y()));
-			//v_points.push_back(Point(v1->x(), v1->y()));
 
 		}
 
 
 		//cv::Mat image = scene_.image();
-		for (int i = 0; i < lines.size(); ++i)
+		for (int i = 0; i < polyset_.size(); ++i)
 		{
-			vector<VTri>& line = lines[i];
+			vector<Point>& line = polyset_[i];
 			cv::Point p0, p1 = scene_.tri2screen(line[0]);
 			for (int i = 1; i < line.size(); ++i)
 			{
@@ -751,11 +752,15 @@ private:
 				scene_.draw_line(p0, p1, cv::Scalar(255, 0, 255), 1);
 			}
 		}
-		VTri itri = scene_.screen2tri(mos_);
-		HTri ihex = scene_.screen2hex(mos_);
+
+
+		Point itri = scene_.screen2tri(mos_);
+
+		Point ihex = hx::HexPoly::nearest_hexagon(itri);
+		//Point ihex = scene_.screen2hex(mos_);
 
 		Point tri = scene_.tri2screen(itri);
-		Point hex = scene_.hex2screen(ihex);
+		//Point hex = scene_.hex2screen(ihex);
 
 		
 		
@@ -764,16 +769,16 @@ private:
 		if (pline != 0)
 			scene_.draw_line( scene_.tri2screen(pline->back()), tri, line_colour);
 		scene_.draw_circle(tri, 5, cv::Scalar(255, 0, 255));
-		scene_.draw_circle(hex, 12, line_colour);
+		//scene_.draw_circle(hex, 12, line_colour);
 		//scene_.draw_circle( , 12, line_colour);
 
 		stringstream ss;
 		ss << (int)itri.x << ", " << (int)itri.y << "(" <<  (int)ihex.x << ", " << (int)ihex.y <<")";
 		scene_.draw_text(ss.str(), tri, 0.5, text_colour);
 
-		ss = stringstream();
-		ss << (int)ihex.x << ", " << (int)ihex.y;
-		scene_.draw_text(ss.str(), hex, 0.5, text_colour);
+		//ss = stringstream();
+		//ss << (int)ihex.x << ", " << (int)ihex.y;
+		//scene_.draw_text(ss.str(), hex, 0.5, text_colour);
 	}
 
 
@@ -792,7 +797,7 @@ private:
 	handler* handler_;
 
 	public:
-	std::vector< std::vector< VTri > > lines;
+	PolygonSet polyset_;
 	boost::polygon::voronoi_diagram<double> v_diagram;
 
 	PolygonSet polygons_;
@@ -800,7 +805,7 @@ private:
 	private:
 
 	
-	 std::vector< VTri >*  pline;
+	 std::vector< Point >*  pline;
 
 
 
@@ -931,10 +936,38 @@ void run_thing(void)
 }
 
 
+
+void test_manhatten(int n)
+{
+	const int n2 = n*n;
+
+	for (int y = -n; y <= n; ++y)
+	{
+		for (int x = -n; x <= n; ++x)
+		{
+			int d = x + y;
+			d *= d;
+			printf("%c", (d > n2)? ' ': (d == n2 || x*x == n2 || y*y == n2) ? '#':'-' );
+
+		}
+		printf("\n");
+	}
+}
+
+
 int main(int argc, char* argv[])
 {
-
+	//test_manhatten(6);
+	//return 0;
 	//run_thing();
+
+	for (int i = -16; i < 17; ++i)
+	{
+		int x = i & 1;
+		int y = i & 2;
+
+		printf("%3d %d %d\n", i, x,y );
+	}
 
 
 	//return 0;
@@ -942,7 +975,7 @@ int main(int argc, char* argv[])
 	const int size = 6;
 	//Point data[] = { { 0, 12 }, { 12, 0 }, { 6, 0 }, { 6, 6 } };
 	Point data[] = { { 2, 7 }, { 7, 2 }, { 10, 5 }, { 5, 10 }, { 2, 7 } };
-	//f.lines.push_back(vector<VTri>(data,data+5));
+	//f.lines.push_back(vector<Point>(data,data+5));
 
 
 
@@ -989,11 +1022,11 @@ int main(int argc, char* argv[])
 				f.voronoi();
 				break;
 			case '+':
-				for (auto& p : f.lines.front())
+				for (auto& p : f.polyset_.front())
 					Geometry60::rot_cw(p, cv::Point(size,size)); //Geometry60::rot_cw(p, size);
 				break;
 			case '-':
-				for (auto& p : f.lines.front())
+				for (auto& p : f.polyset_.front())
 					Geometry60::rot_ccw(p, cv::Point(size, size)); //Geometry60::rot_ccw(p, size);
 				break;
 			default:

@@ -11,6 +11,8 @@ typedef std::vector<Point> Polygon;
 typedef std::vector<Polygon> PolygonSet;
 
 
+
+
 namespace boost { namespace polygon {
 
 	template <>
