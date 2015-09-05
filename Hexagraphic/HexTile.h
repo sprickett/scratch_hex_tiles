@@ -234,13 +234,15 @@ public:
 		PolygonSet fore, back, crop;
 	//	//debug_polyset(polyset);
 
-		hexagon_op(bounds, [&](const Point& h) { 
+		hexagon_op(bounds, [&](const Point& h) 
+		{ 
 			rectangle_data<int> w = window;
 			Point sh = h * scale;
 			move(w, HORIZONTAL, sh.x);
 			move(w, VERTICAL, sh.y);
 			assign(crop, w & polyset);
 			move_polyset(crop, Point(-xl(w),-yl(w)) );
+			//move_polyset(crop, Point(-sh.x, -sh.y));
 			assign(fore, crop & edge);
 			assign(back, fore ^ edge);
 	//		
