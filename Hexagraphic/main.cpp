@@ -46,47 +46,6 @@ void filter(PolygonSet& ps)
 		filter(poly);
 }
 
-void test_polygon(PolygonSet& polyset)
-{
-	using namespace boost::polygon::operators;
-	using namespace boost::polygon;
-	
-	if (polyset.empty())
-		return;
-
-	clean(polyset);
-	filter(polyset);
-
-	rectangle_data<int> rect;
-	extents(rect, polyset);
-	Point c((xl(rect) + xh(rect))/2, (yl(rect) + yh(rect))/2);
-
-	printf("centre %d, %d\n", c.x,c.y);
-	hx::HexPoly h(polyset, c);
-
-	rectangle_data<int> rect2 = rect;
-	bloat(rect2, 1);
-	bloat(rect, 2);
-	polyset += rect2 ^ rect;
-
-	//PolygonSet tps;
-	//get_trapezoids(tps, ps);
-	//printf("pwh %d\n ", tps.size());
-	//for (auto& ply : tps)
-	//{
-	//	for (auto& p : ply)
-	//		printf("(%d, %d) ", p.x, p.y);
-	//	printf("\n");
-	//}
-	
-	
-	//get_trapezoids(polyset, ps);
-
-}
-
-
-
-
 class Mapping
 {
 public:
@@ -653,31 +612,27 @@ public:
 		using boost::polygon::voronoi_builder;
 		using boost::polygon::voronoi_diagram;
 
-		pline = 0;
-
 		if (polyset_.empty())
 			return;
 
-		clean(polyset_);
-		filter(polyset_);
+		pline = 0;
+
+
 
 		rectangle_data<int> rect;
 		extents(rect, polyset_);
-		Point c((xl(rect) + xh(rect)) / 2, (yl(rect) + yh(rect)) / 2);
-		c = scene_.tri2screen(c);
-		c = scene_.screen2hex(c);
-		c = scene_.hex2screen(c);
-		c = scene_.screen2tri(c);
 
+		auto tiles= hx::HexPoly::generate_tiles2(polyset_);
 
-		printf("centre %d, %d\n", c.x, c.y);
-		hx::HexPoly h(polyset_, c);
+		rectangle_data<int> rect2 = rect;
+		bloat(rect2, 1);
+		bloat(rect, 2);
 
-		//rectangle_data<int> rect2 = rect;
-		//bloat(rect2, 1);
-		//bloat(rect, 2);
-		//polyset_ += rect2 ^ rect;	
-
+		polyset_.clear();
+		for (auto& hp : tiles)
+			for (auto& p : hp.foreground())
+				polyset_.push_back(p);
+		//polyset_ += rect2^rect;
 		
 		//v_diagram.clear();
 		//construct_voronoi(points.begin(), points.end(), &v_diagram);
@@ -958,18 +913,9 @@ void test_manhatten(int n)
 
 int main(int argc, char* argv[])
 {
-	//test_manhatten(6);
-	//return 0;
-	//run_thing();
 
-	for (int i = -16; i < 17; ++i)
-	{
-		int x = i & 1;
-		int y = i & 2;
-
-		printf("%3d %d %d\n", i, x,y );
-	}
-
+	for (int x = -5674; x < 5000; x += 256)
+		printf("%d\t%d %d\n", x, x / 256, (x+256*256)/256 - 256);
 
 	//return 0;
 	mapped_image f;

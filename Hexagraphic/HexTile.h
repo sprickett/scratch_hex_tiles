@@ -46,129 +46,313 @@ public:
 
 	static std::vector<HexPoly> generate_tiles(const PolygonSet& polygons)
 	{
-		return std::vector<HexPoly>();
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+
+		std::vector<HexPoly> tiles;
+		if (polygons.empty())
+			return tiles;
+
+		clean(polygons);
+
+		rectangle_data<int> bounds;
+		extents(bounds, polygons);
+
+		const int x_end = xh(bounds) + HEX_SIDE;
+		const int y_end = yh(bounds) + HEX_SIDE;
+		std::array<Point, 4> offsets = {
+			//Point( -1, 1 ),
+			//Point(0, 0 ),
+			//Point(0, 1),
+			//Point(1, 0),
+			hexagon_centre(Point(-1, 1)),
+			hexagon_centre(Point(0, 0)),
+			hexagon_centre(Point(0, 1)),
+			hexagon_centre(Point(1, 0)),
+		};
+
+		Point h0 = nearest_hexagon(Point(xl(bounds), yl(bounds)));
+		for (Point col = hexagon_centre(h0); col.x < x_end; col.x += HEX_SIDE * 3)
+		{
+			for (auto& off : offsets)
+			{
+				for (Point h = col + off; h.y < y_end; h.y += HEX_SIDE * 3)
+				{
+					tiles.emplace_back(HexPoly(polygons, h));
+				}
+			}
+
+		}
+
+		//int x = (xl(bounds) / HEX_SIDE) * HEX_SIDE;
+
+		//
+		//for (rectangle_data<int> roi(x, yl(bounds), x + HEX_SIDE * 2, yh(bounds)); 
+		//	xh(roi) <= xh(bounds); move(roi, HORIZONTAL, HEX_SIDE))
+		//{
+		//	Point h = nearest_hexagon(Point(xl(roi) + HEX_SIDE, yl(roi)));
+		//	for (Point p = hexagon_centre(h); p.y <= yh(roi); p.y += HEX_SIDE * 3)
+		//		
+
+		//	
+		//}
+		//
+
+
+
+		//Point h = hx::HexPoly::nearest_hexagon(Point(xl(rect), yl(rect)));
+		//Point p = hx::HexPoly::hexagon_centre(h);
+
+		
+		//for (int y = p.y; y <= yh(rect); y += 24)
+
+		//hx::HexPoly hp(polygons, p);
+
+		return tiles;
 	}
 
-	HexPoly(PolygonSet& polygons, const Point& offset)
+
+	template<class Op>
+	static void hexagon_op(const boost::polygon::rectangle_data<int>& bounds, Op& op)
 	{
 		using namespace boost::polygon::operators;
 		using namespace boost::polygon;
 
-		PolygonSet crop, fore, back;
+		const int x_end = xh(bounds) + HEX_SIDE;
+		const int y_end = yh(bounds) + HEX_SIDE;
+		std::array<Point, 4> offsets = {
+			//Point( -1, 1 ),
+			//Point(0, 0 ),
+			//Point(0, 1),
+			//Point(1, 0),
+			hexagon_centre(Point(-1, 1)),
+			hexagon_centre(Point(0, 0)),
+			hexagon_centre(Point(0, 1)),
+			hexagon_centre(Point(1, 0)),
+		};
+
+		Point h0 = nearest_hexagon(Point(xl(bounds), yl(bounds)));
+		for (Point col = hexagon_centre(h0); col.x < x_end; col.x += HEX_SIDE * 3)
+		{
+			for (auto& off : offsets)
+			{
+				for (Point h = col + off; h.y < y_end; h.y += HEX_SIDE * 3)
+				{
+					op(h);
+				}
+			}
+		}
+	}
+
+	static void move_polyset(PolygonSet& ps, Point offset)
+	{
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+		for (auto& p:ps)
+		{
+			for (auto& pt : p)
+				pt += offset;
+
+		}
+	}
+	static void scale_up_safe(PolygonSet& ps, int m)
+	{
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+		for (auto& p : ps)
+		{
+			for (auto& pt : p)
+			{
+				pt *= m;
+			}
+		}
+	}
+	static void scale_down_safe(PolygonSet& ps, int m)
+	{
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+		int h = m / 2;
+		for (auto& p : ps)
+		{
+			for (auto& pt : p)
+			{
+				pt.x = (pt.x + h) / m;
+				pt.y = (pt.y + h) / m;
+			}
+		}
+	}
+
+	static void debug_polyset(const PolygonSet& ps)
+	{
+		printf("%d polygons\n",ps.size());
+		for (auto& poly : ps)
+		{
+			printf("%d\t", &poly - &ps[0]);
+			for (auto& p : poly)
+			{
+				printf("(%d, %d) ", p.x, p.y);
+			}
+			printf("\n");
+		}
+	}
+
+
+	static std::vector<HexPoly> generate_tiles2(const PolygonSet& polygons)
+	{
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+
+		std::vector<HexPoly> tiles;
+		if (polygons.empty())
+			return tiles;
+
+
+		const int scale = 256;	
+		const int half = scale/2 - 1;
+
+		PolygonSet polyset = polygons;
+		scale_up_safe(polyset, scale);
+
+
+		rectangle_data<int> bounds;
+		extents(bounds, polyset);
+		scale_down(bounds, scale);
+
+		printf("%d %d %d %d\n", xl(bounds), yl(bounds), xh(bounds), yh(bounds));
+
+		Polygon edge = primary_;
+		scale_up(edge, scale); 
+
+
+		rectangle_data<int> window;
+		extents(window, edge);
+		bloat(window, scale);
+
+		move(edge, HORIZONTAL, -xl(window));
+		move(edge, VERTICAL, -yl(window));
+
+		PolygonSet fore, back, crop;
+	//	//debug_polyset(polyset);
+
+		hexagon_op(bounds, [&](const Point& h) { 
+			rectangle_data<int> w = window;
+			Point sh = h * scale;
+			move(w, HORIZONTAL, sh.x);
+			move(w, VERTICAL, sh.y);
+			assign(crop, w & polyset);
+			move_polyset(crop, Point(-xl(w),-yl(w)) );
+			assign(fore, crop & edge);
+			assign(back, fore ^ edge);
+	//		
+			if (!fore.empty())
+			{
+				scale_down_safe(fore, scale);
+				scale_down_safe(back, scale);
+
+	//			debug_polyset(fore);
+				Point off(xl(window) / scale, yl(window) / scale);
+				move_polyset(fore, off);
+				move_polyset(back, off);
+
+	//				
+				tiles.emplace_back(HexPoly());
+				HexPoly& hp = tiles.back();
+				hp.fore_ = fore;
+				hp.back_ = back;
+
+				move_polyset(hp.fore_, h);
+				move_polyset(hp.back_, h);
+			}
+			else
+				printf("skip %d %d\n", h.x, h.y);
+
+		});
+
+		return tiles;
+	}
+
+	HexPoly(void)
+	{}
+
+	HexPoly(const PolygonSet& polygons, const Point& offset)
+	{
+		using namespace boost::polygon::operators;
+		using namespace boost::polygon;
+
+		PolygonSet crop;// , fore, back;
 
 		const int d = SIDE;
 
 		// crop the polygons to a box twice the size of the tile;
-		crop += rectangle_data<int>(offset.x - d, offset.y - d, offset.x + d, offset.y + d);
-		crop &= polygons; 
+		//crop += rectangle_data<int>(offset.x - d, offset.y - d, offset.x + d, offset.y + d);
+		//crop &= polygons; 
 
 		crop += polygons;
 
-
-		// move the cropped poygons back by the offset
-		for_each(crop.begin(), crop.end(), [&](Polygon& p)
-		{ 
-			move(p, HORIZONTAL, -offset.x);
-			move(p, VERTICAL, -offset.y);
-		});
-
 		Polygon mask = primary_;
+		move(mask, HORIZONTAL, offset.x);
+		move(mask, VERTICAL, offset.y);
+
 		scale_up(mask, 2);
 		scale_up(crop, 2);
-		
-		fore += crop & mask;
-		scale_down(fore, 2);
-		scale_down(crop, 2);
+		assign(fore_, crop & mask);
+		scale_down(fore_, 2);
+		//scale_down(crop, 2);
 
-		// find edges		
-		//for (auto& poly : fore)
-		//{
-		//	Edge edge;
-		//	bool is_edge = true;
-		//	int i1 = indexer(poly.back());
-		//	for (auto& fi = poly.begin()+1; fi < poly.end(); ++fi)
+
+
+		//edges_.emplace_back(0); // add new empty edge
+		//for (auto& poly : fore_)
+		//{	
+		//	int edge_index = edges_.size() - 1;
+		//	for (auto& fi = poly.begin(); fi < poly.end(); ++fi)
 		//	{
-		//		int i0 = i1;
-		//		i1= indexer(*fi);
-		//		if (!flags_[i0].is_outline || !flags_[i1].is_outline)
-		//		{
-		//			if (edge.empty())
-		//		}
+		//		Edge& e = edges_.back();
+		//		int i = indexer(*fi);
 
-		//		if (!flags_[i].is_outline)
-		//			edge.push_back(i);
-		//		else if (fi != poly.begin() && !flags_[indexer(*(fi-1))].is_outline)
-		//			edge.push_back(i);
-		//		else if (fi + 1 != poly.end() && !flags_[indexer(*(fi + 1))].is_outline)
-		//			edge.push_back(i);
-		//		else for (auto& poly : crop)
+		//		if (!flags_[i].is_outline)  
 		//		{
-		//			if(std::find(poly.begin(), poly.end(), *fi) != poly.end())
-		//			{
-		//				edge.push_back(i);
-		//				break;
-		//			}		
+		//			if (e.empty() && fi != poly.begin()) // start of edge
+		//				e.emplace_back(indexer(*(fi - 1))); // if possible add start 
+		//			e.emplace_back(i);
+		//		}					
+		//		else if (!e.empty()) // end of edge
+		//		{
+		//			e.push_back(i); // add end
+		//			edges_.emplace_back(0); // add new empty edge
 		//		}
-
 		//	}
-		//	if (!edge.empty())
-		//		edges_.push_back(edge);
-		//	printf("edge %d\n", edge.size());
+		//	// if an edge has been found add a new empty edge
+		//	if (!edges_.back().empty())
+		//	{
+		//		// logic here for joining the first and last edges if necessary
+		//		edges_.emplace_back(0);
+		//	}
 		//}
-
-		edges_.emplace_back(0); // add new empty edge
-		for (auto& poly : fore)
-		{	
-			int edge_index = edges_.size() - 1;
-			for (auto& fi = poly.begin(); fi < poly.end(); ++fi)
-			{
-				Edge& e = edges_.back();
-				int i = indexer(*fi);
-
-				if (!flags_[i].is_outline)  
-				{
-					if (e.empty() && fi != poly.begin()) // start of edge
-						e.emplace_back(indexer(*(fi - 1))); // if possible add start 
-					e.emplace_back(i);
-				}					
-				else if (!e.empty()) // end of edge
-				{
-					e.push_back(i); // add end
-					edges_.emplace_back(0); // add new empty edge
-				}
-			}
-			// if an edge has been found add a new empty edge
-			if (!edges_.back().empty())
-			{
-				// logic here for joining the first and last edges if necessary
-				edges_.emplace_back(0);
-			}
-		}
-		if (!edges_.back().empty())
-			edges_.pop_back(); // 
+		//if (!edges_.back().empty())
+		//	edges_.pop_back(); // 
 
 
-		printf("edges %d -> ", edges_.size());
-		for (auto& e : edges_)
-			printf(" %d", e.size());
-		printf("\n");
+		//printf("edges %d -> ", edges_.size());
+		//for (auto& e : edges_)
+		//	printf(" %d", e.size());
+		//printf("\n");
 
-		back += fore ^ primary_;
+
+
+
+
+
+		assign(back_, fore_ ^ primary_);
 
 
 
 		//assign(polygons,primary_);
 		
-		polygons = fore;
-		for_each(polygons.begin(), polygons.end(), [&](Polygon& p)
-		{
-			move(p, HORIZONTAL, offset.x);
-			move(p, VERTICAL, offset.y);
-		});
 
 	}
 
-	const std::vector<Edge>& edges(){ return edges_; }
+	
 
 	size_t generate_edges(ushort* buf)
 	{
@@ -270,13 +454,15 @@ public:
 		int y = p.y / HEX_SIDE - negy;
 		int xr = p.x % HEX_SIDE + negx * HEX_SIDE;
 		int yr = p.y % HEX_SIDE + negy * HEX_SIDE;
+		int dy = xr + yr < HEX_SIDE;
 		int q = (x - y) % 3; // -2 -1 0 1 2
 
 		q += (q < 0) * 3;
 		x -= q & 1;
 		y -= q == 2;
 		x = (x - y) / 3;
-		y += x - ((q == 0) & (xr + yr < HEX_SIDE));
+		y += x;
+		y -= (q == 0) & dy;
 		return Point(x, y);
 	}
 	static Point hexagon_centre(const Point& p)
@@ -286,10 +472,14 @@ public:
 		return Point(x*HEX_SIDE, y*HEX_SIDE);
 	}
 
-
+	const std::vector<Edge>& edges() const { return edges_; }
+	const PolygonSet& foreground() const { return fore_; }
+	const PolygonSet& background() const { return back_; }
 	friend bool operator<(const HexPoly& lhs, const HexPoly& rhs);
 
 private:
+	PolygonSet fore_;
+	PolygonSet back_;
 	std::vector<Edge> edges_;
 	std::vector<int> mesh_;
 	std::vector<int> mesh_inv_;
