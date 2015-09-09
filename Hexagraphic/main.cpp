@@ -151,7 +151,7 @@ private:
 class MapperH
 {
 public:
-	MapperH(int step = 3)
+	MapperH(int step = 5)
 		: image_(900, 1600, CV_8UC3)
 		, tri_(step)
 		, hex_(step * 18)

@@ -35,16 +35,20 @@ namespace hx {
 	}
 
 
-	inline void scale_down_safe(int& interval, int scale)
-	{
-		int i = interval / scale;
-		int r = (interval % scale) * 2;
-		interval = i + (scale <= r) - (scale < -r);
-	}
+	//inline void scale_down_safe(int& interval, int scale)
+	//{
+	//	int i = interval / scale;
+	//	int r = (interval % scale) * 2;
+	//	interval = i + (scale < r) - (scale <= -r);
+	//}
 	inline void scale_down_safe(Point& point, int scale)
 	{
-		scale_down_safe(point.x, scale);
-		scale_down_safe(point.y, scale);
+			int r = (point.x % scale) * 2;
+			point.x = point.x / scale + (scale <= r) - (scale < -r);
+			r = (point.y % scale) * 2;
+			point.y = point.y / scale + (scale < r) - (scale <= -r);
+		//scale_down_safe(point.x, scale);
+		//scale_down_safe(point.y, scale);
 	}
 	inline void scale_down_safe(Polygon& polygon, int scale)
 	{

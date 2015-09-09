@@ -103,7 +103,7 @@ public:
 		if (polygons.empty())
 			return tiles;
 		
-		printf("hello mum\n");
+		//printf("hello mum\n");
 
 
 		// boost::polygon may remove edges with a length of 1 which is undesirable
@@ -156,10 +156,7 @@ public:
 
 			assign(fore, crop & edge); // AND with edge to find foreground
 
-			if (!fore.empty())
-				debug_polyset(fore);
-
-			scale_down_safe(fore, scale); // scale down then to align points
+			scale_down_safe(fore, scale); // scale down to align points
 			scale_up_safe(fore, scale); // scale back up to use library functions
 
 
@@ -169,42 +166,6 @@ public:
 				scale_down_safe(fore, scale); // scale down to final result
 				scale_down_safe(back, scale);
 
-				
-
-				for (unsigned i = 0; i < Transform::MAX; ++i)
-				{
-					tiles.emplace_back(HexPoly());
-					tiles.emplace_back(HexPoly());
-					HexPoly& h0 = tiles[tiles.size()-2];
-					HexPoly& h1 = tiles.back();
-					h0.fore_ = fore;
-					h0.back_ = back;
-
-					cv::Matx<int,2,2> m = rot_lut_[i];
-					for (unsigned j = 0; j < h0.fore_.size(); ++j)
-					{
-						Polygon& poly = h0.fore_[j];
-						for_each(poly.begin(), poly.end(), [&](Point& pt){ 	pt = m * pt;  });
-					}
-
-					h1 = h0;
-
-
-					unsigned t = i < 6 ? (i>0)*(6 - i%6) : i;
-					m = rot_lut_[inverse_transform(i)];
-					for (unsigned j = 0; j < h1.fore_.size(); ++j)
-					{
-						Polygon& poly = h1.fore_[j];
-						for_each(poly.begin(), poly.end(), [&](Point& pt){ 	pt = m * pt;  });
-					}
-		
-					unsigned d = i / 6;
-					Point c(i%6 - d, d * 2);
-					translate(h0.fore_, hexagon_centre(c));
-					++c.y;
-					translate(h1.fore_, hexagon_centre(c));
-				}
-
 				tiles.emplace_back(HexPoly());
 				HexPoly& hp = tiles.back();
 
@@ -213,11 +174,6 @@ public:
 
 				translate(hp.fore_, h);
 				translate(hp.back_, h);
-				printf("hit %d %d\n", h.x, h.y);
-			}
-			else
-			{
-				printf("skip %d %d\n", h.x, h.y);
 			}
 
 		});
