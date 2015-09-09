@@ -10,7 +10,67 @@ typedef cv::Point2i Point;
 typedef std::vector<Point> Polygon;
 typedef std::vector<Polygon> PolygonSet;
 
+namespace hx {	
 
+	inline int sign(int n)
+	{
+		return (0 < n) - (n < 0);
+	}
+
+
+	inline void scale_up_safe(Point& point, int scale)
+	{
+		point.x *= scale;
+		point.y *= scale;
+	}
+	inline void scale_up_safe(Polygon& polygon, int scale)
+	{
+		for (auto& p : polygon)
+			scale_up_safe(p, scale);		
+	}
+	inline void scale_up_safe(PolygonSet& polyset, int scale)
+	{
+		for (auto& p : polyset)
+			scale_up_safe(p, scale);
+	}
+
+
+	inline void scale_down_safe(int& interval, int scale)
+	{
+		int i = interval / scale;
+		int r = (interval % scale) * 2;
+		interval = i + (scale <= r) - (scale < -r);
+	}
+	inline void scale_down_safe(Point& point, int scale)
+	{
+		scale_down_safe(point.x, scale);
+		scale_down_safe(point.y, scale);
+	}
+	inline void scale_down_safe(Polygon& polygon, int scale)
+	{
+		for (auto& p : polygon)
+			scale_down_safe(p, scale);
+	}
+	inline void scale_down_safe(PolygonSet& polyset, int scale)
+	{
+		for (auto& p : polyset)
+			scale_down_safe(p, scale);
+	}
+
+	
+
+	inline void translate(Polygon& polygon, Point offset)
+	{
+		for (auto& p : polygon)
+			p+=offset;
+	}
+	inline void translate(PolygonSet& polyset, Point offset)
+	{
+		for (auto& p : polyset)
+			translate(p,offset);
+	}
+
+}
 
 
 namespace boost { namespace polygon {

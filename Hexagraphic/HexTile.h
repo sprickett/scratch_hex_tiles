@@ -44,74 +44,6 @@ public:
 	typedef std::array<Point, VERTEX_COUNT> VertexOffsets;
 	typedef std::array<cv::Matx<int, 2, 2>, Transform::MAX> TransformTable;
 
-	static std::vector<HexPoly> generate_tiles(const PolygonSet& polygons)
-	{
-		using namespace boost::polygon::operators;
-		using namespace boost::polygon;
-
-		std::vector<HexPoly> tiles;
-		if (polygons.empty())
-			return tiles;
-
-		clean(polygons);
-
-		rectangle_data<int> bounds;
-		extents(bounds, polygons);
-
-		const int x_end = xh(bounds) + HEX_SIDE;
-		const int y_end = yh(bounds) + HEX_SIDE;
-		std::array<Point, 4> offsets = {
-			//Point( -1, 1 ),
-			//Point(0, 0 ),
-			//Point(0, 1),
-			//Point(1, 0),
-			hexagon_centre(Point(-1, 1)),
-			hexagon_centre(Point(0, 0)),
-			hexagon_centre(Point(0, 1)),
-			hexagon_centre(Point(1, 0)),
-		};
-
-		Point h0 = nearest_hexagon(Point(xl(bounds), yl(bounds)));
-		for (Point col = hexagon_centre(h0); col.x < x_end; col.x += HEX_SIDE * 3)
-		{
-			for (auto& off : offsets)
-			{
-				for (Point h = col + off; h.y < y_end; h.y += HEX_SIDE * 3)
-				{
-					tiles.emplace_back(HexPoly(polygons, h));
-				}
-			}
-
-		}
-
-		//int x = (xl(bounds) / HEX_SIDE) * HEX_SIDE;
-
-		//
-		//for (rectangle_data<int> roi(x, yl(bounds), x + HEX_SIDE * 2, yh(bounds)); 
-		//	xh(roi) <= xh(bounds); move(roi, HORIZONTAL, HEX_SIDE))
-		//{
-		//	Point h = nearest_hexagon(Point(xl(roi) + HEX_SIDE, yl(roi)));
-		//	for (Point p = hexagon_centre(h); p.y <= yh(roi); p.y += HEX_SIDE * 3)
-		//		
-
-		//	
-		//}
-		//
-
-
-
-		//Point h = hx::HexPoly::nearest_hexagon(Point(xl(rect), yl(rect)));
-		//Point p = hx::HexPoly::hexagon_centre(h);
-
-		
-		//for (int y = p.y; y <= yh(rect); y += 24)
-
-		//hx::HexPoly hp(polygons, p);
-
-		return tiles;
-	}
-
-
 	template<class Op>
 	static void hexagon_op(const boost::polygon::rectangle_data<int>& bounds, Op& op)
 	{
@@ -120,15 +52,12 @@ public:
 
 		const int x_end = xh(bounds) + HEX_SIDE;
 		const int y_end = yh(bounds) + HEX_SIDE;
+
 		std::array<Point, 4> offsets = {
-			//Point( -1, 1 ),
-			//Point(0, 0 ),
-			//Point(0, 1),
-			//Point(1, 0),
-			hexagon_centre(Point(-1, 1)),
+			hexagon_centre(Point(-1, 0)),
+			hexagon_centre(Point(0, -1)),
 			hexagon_centre(Point(0, 0)),
-			hexagon_centre(Point(0, 1)),
-			hexagon_centre(Point(1, 0)),
+			hexagon_centre(Point(1, -1)),
 		};
 
 		Point h0 = nearest_hexagon(Point(xl(bounds), yl(bounds)));
@@ -144,43 +73,11 @@ public:
 		}
 	}
 
-	static void move_polyset(PolygonSet& ps, Point offset)
+	static unsigned inverse_transform(unsigned index)
 	{
-		using namespace boost::polygon::operators;
-		using namespace boost::polygon;
-		for (auto& p:ps)
-		{
-			for (auto& pt : p)
-				pt += offset;
+		return 0 < index & index < 6 ? (6 - index) : index;
+	}
 
-		}
-	}
-	static void scale_up_safe(PolygonSet& ps, int m)
-	{
-		using namespace boost::polygon::operators;
-		using namespace boost::polygon;
-		for (auto& p : ps)
-		{
-			for (auto& pt : p)
-			{
-				pt *= m;
-			}
-		}
-	}
-	static void scale_down_safe(PolygonSet& ps, int m)
-	{
-		using namespace boost::polygon::operators;
-		using namespace boost::polygon;
-		int h = m / 2;
-		for (auto& p : ps)
-		{
-			for (auto& pt : p)
-			{
-				pt.x = (pt.x + h) / m;
-				pt.y = (pt.y + h) / m;
-			}
-		}
-	}
 
 	static void debug_polyset(const PolygonSet& ps)
 	{
@@ -205,68 +102,123 @@ public:
 		std::vector<HexPoly> tiles;
 		if (polygons.empty())
 			return tiles;
+		
+		printf("hello mum\n");
 
 
-		const int scale = 256;	
-		const int half = scale/2 - 1;
+		// boost::polygon may remove edges with a length of 1 which is undesirable
+		// to avoid this polygon data must be scaled up using safe scaling functions 
+		// before any boost::polygon library operations 
 
+		const int scale = 256;
+
+		// copy and scale up polygons 
 		PolygonSet polyset = polygons;
-		scale_up_safe(polyset, scale);
+		scale_up_safe(polyset, scale); 
 
-
-		rectangle_data<int> bounds;
-		extents(bounds, polyset);
-		scale_down(bounds, scale);
-
-		printf("%d %d %d %d\n", xl(bounds), yl(bounds), xh(bounds), yh(bounds));
-
+		// scale up the primary edge
 		Polygon edge = primary_;
 		scale_up(edge, scale); 
 
-
+		// find the bounding box of the edge and bloat it by 1 and scale 
 		rectangle_data<int> window;
-		extents(window, edge);
-		bloat(window, scale);
+		extents(window, primary_);
+		bloat(window, 1);
+		scale_up(window, scale);
 
-		move(edge, HORIZONTAL, -xl(window));
-		move(edge, VERTICAL, -yl(window));
+		// find the bounding box of the scaled polygons and scale back down
+		rectangle_data<int> bounds;
+		extents(bounds, polyset);
+		//bloat(bounds, scale / 2);
+		scale_down(bounds, scale);
 
 		PolygonSet fore, back, crop;
-	//	//debug_polyset(polyset);
 
+		// for every tile centre in the bounds...
 		hexagon_op(bounds, [&](const Point& h) 
 		{ 
+			//   _____________
+			//  |     |_____ /|
+			//  |    /      | |<-- window
+			//  |   /       | |
+			//  |_ /        |_|
+			//  | |        /  |
+			//  | |       /<--|--- edge
+			//  | |______/    |
+			//  |/_______|____|
+			
 			rectangle_data<int> w = window;
-			Point sh = h * scale;
-			move(w, HORIZONTAL, sh.x);
+			Point sh = h * scale; // find the scaled centre
+			move(w, HORIZONTAL, sh.x); // move copy of window to the scaled tiles position
 			move(w, VERTICAL, sh.y);
-			assign(crop, w & polyset);
-			move_polyset(crop, Point(-xl(w),-yl(w)) );
-			//move_polyset(crop, Point(-sh.x, -sh.y));
-			assign(fore, crop & edge);
-			assign(back, fore ^ edge);
-	//		
+			assign(crop, w & polyset); // AND window with the polygons to find crop 
+			translate(crop, -sh); // move the result back
+
+			assign(fore, crop & edge); // AND with edge to find foreground
+
 			if (!fore.empty())
-			{
-				scale_down_safe(fore, scale);
+				debug_polyset(fore);
+
+			scale_down_safe(fore, scale); // scale down then to align points
+			scale_up_safe(fore, scale); // scale back up to use library functions
+
+
+			if (!fore.empty())
+			{				
+				assign(back, fore ^ edge); // XOR result with edge to find background (forces clean on foreground)			
+				scale_down_safe(fore, scale); // scale down to final result
 				scale_down_safe(back, scale);
 
-	//			debug_polyset(fore);
-				Point off(xl(window) / scale, yl(window) / scale);
-				move_polyset(fore, off);
-				move_polyset(back, off);
+				
 
-	//				
+				for (unsigned i = 0; i < Transform::MAX; ++i)
+				{
+					tiles.emplace_back(HexPoly());
+					tiles.emplace_back(HexPoly());
+					HexPoly& h0 = tiles[tiles.size()-2];
+					HexPoly& h1 = tiles.back();
+					h0.fore_ = fore;
+					h0.back_ = back;
+
+					cv::Matx<int,2,2> m = rot_lut_[i];
+					for (unsigned j = 0; j < h0.fore_.size(); ++j)
+					{
+						Polygon& poly = h0.fore_[j];
+						for_each(poly.begin(), poly.end(), [&](Point& pt){ 	pt = m * pt;  });
+					}
+
+					h1 = h0;
+
+
+					unsigned t = i < 6 ? (i>0)*(6 - i%6) : i;
+					m = rot_lut_[inverse_transform(i)];
+					for (unsigned j = 0; j < h1.fore_.size(); ++j)
+					{
+						Polygon& poly = h1.fore_[j];
+						for_each(poly.begin(), poly.end(), [&](Point& pt){ 	pt = m * pt;  });
+					}
+		
+					unsigned d = i / 6;
+					Point c(i%6 - d, d * 2);
+					translate(h0.fore_, hexagon_centre(c));
+					++c.y;
+					translate(h1.fore_, hexagon_centre(c));
+				}
+
 				tiles.emplace_back(HexPoly());
 				HexPoly& hp = tiles.back();
+
 				hp.fore_ = fore;
 				hp.back_ = back;
 
-				move_polyset(hp.fore_, h);
-				move_polyset(hp.back_, h);
+				translate(hp.fore_, h);
+				translate(hp.back_, h);
+				printf("hit %d %d\n", h.x, h.y);
 			}
 			else
+			{
 				printf("skip %d %d\n", h.x, h.y);
+			}
 
 		});
 

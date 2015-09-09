@@ -629,10 +629,11 @@ public:
 		bloat(rect, 2);
 
 		polyset_.clear();
+		//polyset_ += rect2^rect;
 		for (auto& hp : tiles)
 			for (auto& p : hp.foreground())
 				polyset_.push_back(p);
-		//polyset_ += rect2^rect;
+		
 		
 		//v_diagram.clear();
 		//construct_voronoi(points.begin(), points.end(), &v_diagram);
@@ -755,13 +756,13 @@ private:
 	public:
 	PolygonSet polyset_;
 	boost::polygon::voronoi_diagram<double> v_diagram;
-
-	PolygonSet polygons_;
+	Polygon*  pline;
+	//PolygonSet polygons_;
 
 	private:
 
 	
-	 std::vector< Point >*  pline;
+	 
 
 
 
@@ -914,8 +915,12 @@ void test_manhatten(int n)
 int main(int argc, char* argv[])
 {
 
-	for (int x = -5674; x < 5000; x += 256)
-		printf("%d\t%d %d\n", x, x / 256, (x+256*256)/256 - 256);
+	//for (int x = -5674; x < 5000; x += 256)
+	//{
+	//	int y = x;
+	//	hx::scale_down_safe(y, 256);
+	//	printf("%d\t%d %d\n", x, x / 256,y );
+	//}
 
 	//return 0;
 	mapped_image f;
@@ -975,6 +980,10 @@ int main(int argc, char* argv[])
 			case '-':
 				for (auto& p : f.polyset_.front())
 					Geometry60::rot_ccw(p, cv::Point(size, size)); //Geometry60::rot_ccw(p, size);
+				break;
+			case 'x':
+				f.polyset_.clear();
+				f.pline = 0;
 				break;
 			default:
 				printf("%d '%c' unmapped", key, key);

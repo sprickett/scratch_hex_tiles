@@ -1,4 +1,5 @@
 #include "HexTile.h"
+#include <algorithm>
 
 using namespace hx;
 
@@ -75,11 +76,11 @@ static HexPoly::TransformTable get_rotation_table()
 	using t = HexPoly::Transform;
 
 	r[t::R0] = rI;
-	r[t::R60] = rT*rS;
-	r[t::R120] = rS*rD;
-	r[t::R180] = rD*rD;
-	r[t::R240] = rD*rS;
-	r[t::R300] = rS*rT;
+	r[t::R60] = rS*rD;
+	r[t::R120] = rT*rS;
+	r[t::R180] = rD*rT;
+	r[t::R240] = rS*rT;
+	r[t::R300] = rD*rS;
 
 	r[t::T0] = rT * r[t::R0];
 	r[t::T60] = rT * r[t::R60];
@@ -87,6 +88,18 @@ static HexPoly::TransformTable get_rotation_table()
 	r[t::T180] = rT * r[t::R180];
 	r[t::T240] = rT * r[t::R240];
 	r[t::T300] = rT * r[t::R300];
+
+	for (int i = 0; i < t::MAX; ++i)
+	{
+		cv::Matx<int, 2, 2> mt = r[i];
+		cv::flip(mt, mt, -1);
+		for (int j = 0; j < t::MAX; ++j)
+		{
+			if (mt(0) == r[j](0) && mt(1) == r[j](1) && mt(2) == r[j](2) && mt(3) == r[j](3))
+				printf("%d ~~> %d\n",i,j);
+
+		}
+	}
 
 	return r;
 }
